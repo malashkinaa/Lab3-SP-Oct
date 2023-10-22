@@ -1,77 +1,107 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
-// Типи лексем
-typedef enum {
-	KEYWORD, IDENTIFIER, NUMBER, STRING, CHAR_CONST,
-	PREPROCESSOR_DIRECTIVE, OPERATOR, PUNCTUATION, COMMENT, ERROR
-} TokenType;
+#define MAX_TYPE_SIZE 20
+#define MAX_VALUE_SIZE 50
 
-// Структура для представлення лексеми
-typedef struct {
-	char lexeme[100];
-	TokenType type;
-} Token;
+// Structure for representing lexemes
+struct Lexeme {
+	char type[MAX_TYPE_SIZE];
+	char value[MAX_VALUE_SIZE];
+};
 
-// Функція для визначення типу лексеми
-TokenType get_token_type(const char* lexeme) {
-	// Логіка визначення типу лексеми тут
-	// Приклад: перевірка чи є лексема ключовим словом
-	if (strcmp(lexeme, "int") == 0 || strcmp(lexeme, "float") == 0) {
-		return KEYWORD;
-	}
-	// Додайте інші перевірки для інших типів лексем
-	// ...
+// Structure for representing the lexeme table
+struct LexemeTable {
+	struct Lexeme* lexemes;
+	int size;
+};
 
-	// Якщо не вдалося визначити тип, повертаємо ERROR
-	return ERROR;
+// Initialize the lexeme table
+struct LexemeTable initLexemeTable() {
+	struct LexemeTable table;
+	table.lexemes = NULL;
+	table.size = 0;
+	return table;
 }
 
-// Функція для виводу лексеми з кольорами
-void print_colored_token(Token token) {
-	switch (token.type) {
-	case KEYWORD:
-		printf("\x1b[31m"); // Червоний колір для ключових слів
-		break;
-	case IDENTIFIER:
-		printf("\x1b[32m"); // Зелений колір для ідентифікаторів
-		break;
-		// Додайте інші випадки для інших типів лексем
-		// ...
-	default:
-		break;
-	}
+// Add a lexeme to the table
+void addLexeme(struct LexemeTable* table, const char* type, const char* value) {
+	table->size++;
+	table->lexemes = (struct Lexeme*)realloc(table->lexemes, table->size * sizeof(struct Lexeme));
+	strcpy_s(table->lexemes[table->size - 1].type, MAX_TYPE_SIZE, type);
+	strcpy_s(table->lexemes[table->size - 1].value, MAX_VALUE_SIZE, value);
+}
 
-	printf("< %s , %d >\x1b[0m\n", token.lexeme, token.type); // Скидання кольорів
+// Determine the type of a lexeme
+const char* getLexemeType(const char* lexemeValue) {
+	if (isdigit(lexemeValue[0]) || (lexemeValue[0] == '-' && isdigit(lexemeValue[1]))) {
+		return "Number";
+	}
+	else if (strcmp(lexemeValue, "if") == 0 || strcmp(lexemeValue, "else") == 0) {
+		return "Keyword";
+	}
+	else if (strcmp(lexemeValue, "{") == 0 || strcmp(lexemeValue, "}") == 0 ||
+		strcmp(lexemeValue, "(") == 0 || strcmp(lexemeValue, ")") == 0 ||
+		strcmp(lexemeValue, "+") == 0 || strcmp(lexemeValue, "-") == 0) {
+		return "Operator";
+	}
+	else {
+		return "Identifier";
+	}
+}
+
+// Lexical analyzer for identifiers
+void analyzeIdentifiers(const char* code, struct LexemeTable* table) {
+	char identifier[MAX_VALUE_SIZE];
+	int i = 0;
+
+	while (code[i] != '\0') {
+		if (isalpha(code[i]) || code[i] == '_') {
+			int j = 0;
+			while (isalnum(code[i]) || code[i] == '_') {
+				identifier[j++] = code[i++];
+			}
+			identifier[j] = '\0';
+
+			const char* type = getLexemeType(identifier);
+			addLexeme(table, type, identifier);
+		}
+		else if (code[i] == ' ' || code[i] == '\t' || code[i] == '\n') {
+			i++;
+		}
+		else {
+			char symbol[2];
+			symbol[0] = code[i];
+			symbol[1] = '\0';
+			const char* type = getLexemeType(symbol);
+			addLexeme(table, type, symbol);
+			i++;
+		}
+	}
+}
+
+// Main function for code analysis
+struct LexemeTable analyze(const char* code) {
+	struct LexemeTable table = initLexemeTable();
+
+	analyzeIdentifiers(code, &table);
+
+	return table;
 }
 
 int main() {
-	char program[1000];
-	printf("Enter the program text:\n");
-	fgets(program, sizeof(program), stdin);
+	const char* code = "int main() { if (x > 0) y = x + 1; else y = x - 1; }";
+	struct LexemeTable lexemeTable = analyze(code);
 
-	// Використовуємо strtok_s для розбиття на лексеми
-	char* token = NULL;
-	char* next_token = NULL;
-
-	// Приклад розбиття програми на лексеми
-	token = strtok_s(program, " \t\n", &next_token);
-	while (token != NULL) {
-		// Визначаємо тип лексеми
-		TokenType type = get_token_type(token);
-
-		// Створюємо структуру лексеми
-		Token current_token;
-		strcpy_s(current_token.lexeme, sizeof(current_token.lexeme), token);
-		current_token.type = type;
-
-		// Виводимо лексему з кольорами
-		print_colored_token(current_token);
-
-		// Отримуємо наступну лексему
-		token = strtok_s(NULL, " \t\n", &next_token);
+	// Output the analysis results with lexeme types
+	for (int i = 0; i < lexemeTable.size; i++) {
+		printf("Lexeme: %s, Type: %s\n", lexemeTable.lexemes[i].value, lexemeTable.lexemes[i].type);
 	}
+
+	// Free memory allocated for the lexeme table
+	free(lexemeTable.lexemes);
 
 	return 0;
 }
